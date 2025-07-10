@@ -8,6 +8,6 @@ edition = "2018"
 
 [dependencies]
 anchor-lang = { workspace = true }
-borsh = { version = "0.10", features = ["const-generics"] }
+borsh = { version = "1" }
 decimal = { path = "../decimal" }
-bytemuck = "1"
+bytemuck = { version = "1", features = ["derive"] }
