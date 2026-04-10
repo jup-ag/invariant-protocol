@@ -2,7 +2,7 @@ use crate::*;
 use anchor_lang::prelude::*;
 use decimals::*;
 
-#[account(zero_copy)]
+#[account(zero_copy(unsafe))]
 #[repr(packed)]
 #[derive(PartialEq, Default, Debug)]
 pub struct Pool {
@@ -29,6 +29,10 @@ pub struct Pool {
     pub oracle_address: Pubkey,
     pub oracle_initialized: bool,
     pub bump: u8,
+}
+
+impl Pool {
+    pub const LEN: usize = 8 + core::mem::size_of::<Self>();
 }
 
 impl Pool {
@@ -70,7 +74,7 @@ impl Pool {
     pub fn update_liquidity_safely(&mut self, liquidity_delta: Liquidity, add: bool) -> Result<()> {
         // validate in decrease liquidity case
         if !add && { self.liquidity } < liquidity_delta {
-            return Err(ErrorCode::InvalidPoolLiquidity.into());
+            return Err(crate::ErrorCode::InvalidPoolLiquidity.into());
         };
         // pool liquidity can cannot be negative
         self.liquidity = match add {

@@ -1,5 +1,3 @@
-use anchor_lang::__private::ErrorCode;
-use anchor_lang::__private::CLOSED_ACCOUNT_DISCRIMINATOR;
 use std::cell::RefMut;
 use std::convert::TryInto;
 use std::io::Write;
@@ -11,9 +9,11 @@ use crate::structs::tickmap::Tickmap;
 use crate::structs::tickmap::{get_search_limit, MAX_TICK, TICK_LIMIT};
 use crate::*;
 
+const CLOSED_ACCOUNT_DISCRIMINATOR: [u8; 8] = [255; 8];
+
 pub fn check_ticks(tick_lower: i32, tick_upper: i32, tick_spacing: u16) -> Result<()> {
     // Check order
-    require!(tick_lower < tick_upper, InvalidTickIndex);
+    require!(tick_lower < tick_upper, crate::ErrorCode::InvalidTickIndex);
 
     check_tick(tick_lower, tick_spacing)?;
     check_tick(tick_upper, tick_spacing)?;
@@ -25,15 +25,15 @@ pub fn check_tick(tick_index: i32, tick_spacing: u16) -> Result<()> {
     // Check order
     require!(
         tick_index.checked_rem(tick_spacing.into()) == Some(0),
-        InvalidTickIndex
+        crate::ErrorCode::InvalidTickIndex
     );
 
     let tickmap_index = tick_index.checked_div(tick_spacing.into()).unwrap();
 
-    require!(tickmap_index >= (-TICK_LIMIT), InvalidTickIndex);
-    require!(tickmap_index < TICK_LIMIT, InvalidTickIndex);
-    require!(tick_index >= (-MAX_TICK), InvalidTickIndex);
-    require!(tick_index <= MAX_TICK, InvalidTickIndex);
+    require!(tickmap_index >= (-TICK_LIMIT), crate::ErrorCode::InvalidTickIndex);
+    require!(tickmap_index < TICK_LIMIT, crate::ErrorCode::InvalidTickIndex);
+    require!(tick_index >= (-MAX_TICK), crate::ErrorCode::InvalidTickIndex);
+    require!(tick_index <= MAX_TICK, crate::ErrorCode::InvalidTickIndex);
 
     Ok(())
 }
@@ -69,7 +69,7 @@ pub fn get_closer_limit(
             let index = get_search_limit(current_tick, tick_spacing, !x_to_y);
             let price = calculate_price_sqrt(index);
 
-            require!(current_tick != index, LimitReached);
+            require!(current_tick != index, crate::ErrorCode::LimitReached);
 
             // trunk-ignore(clippy/if_same_then_else)
             if x_to_y && price > sqrt_price_limit {
@@ -126,7 +126,7 @@ pub fn get_current_slot() -> u64 {
 pub fn close<'info>(
     info: AccountInfo<'info>,
     sol_destination: AccountInfo<'info>,
-) -> ProgramResult {
+) -> Result<()> {
     // Transfer tokens from the account to the sol_destination.
     let dest_starting_lamports = sol_destination.lamports();
     **sol_destination.lamports.borrow_mut() =
@@ -139,7 +139,7 @@ pub fn close<'info>(
     let mut cursor = std::io::Cursor::new(dst);
     cursor
         .write_all(&CLOSED_ACCOUNT_DISCRIMINATOR)
-        .map_err(|_| ErrorCode::AccountDidNotSerialize)?;
+        .map_err(|_| ProgramError::InvalidAccountData)?;
     Ok(())
 }
 

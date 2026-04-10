@@ -11,7 +11,7 @@ use crate::ErrorCode::*;
 use crate::*;
 use crate::{decimals::*, referral::whitelist::contains_owner};
 use anchor_lang::prelude::*;
-use anchor_spl::token::{TokenAccount, Transfer};
+use anchor_spl::token::{self, TokenAccount, Transfer};
 
 #[derive(Accounts)]
 pub struct Swap<'info> {
@@ -24,7 +24,7 @@ pub struct Swap<'info> {
     pub pool: AccountLoader<'info, Pool>,
     #[account(mut,
         constraint = tickmap.to_account_info().key == &pool.load()?.tickmap @ InvalidTickmap,
-        constraint = tickmap.to_account_info().owner == program_id @ InvalidTickmapOwner
+        constraint = tickmap.to_account_info().owner == __program_id @ InvalidTickmapOwner
     )]
     pub tickmap: AccountLoader<'info, Tickmap>,
     #[account(mut,
@@ -49,15 +49,14 @@ pub struct Swap<'info> {
     pub reserve_y: Box<Account<'info, TokenAccount>>,
     pub owner: Signer<'info>,
     #[account(constraint = &state.load()?.authority == program_authority.key @ InvalidAuthority)]
-    pub program_authority: AccountInfo<'info>,
-    #[account(address = token::ID)]
-    pub token_program: AccountInfo<'info>,
+    pub program_authority: UncheckedAccount<'info>,
+    pub token_program: Program<'info, token::Token>,
 }
 
 impl<'info> TakeTokens<'info> for Swap<'info> {
     fn take_x(&self) -> CpiContext<'_, '_, '_, 'info, Transfer<'info>> {
         CpiContext::new(
-            self.token_program.to_account_info(),
+            self.token_program.key(),
             Transfer {
                 from: self.account_x.to_account_info(),
                 to: self.reserve_x.to_account_info(),
@@ -68,7 +67,7 @@ impl<'info> TakeTokens<'info> for Swap<'info> {
 
     fn take_y(&self) -> CpiContext<'_, '_, '_, 'info, Transfer<'info>> {
         CpiContext::new(
-            self.token_program.to_account_info(),
+            self.token_program.key(),
             Transfer {
                 from: self.account_y.to_account_info(),
                 to: self.reserve_y.to_account_info(),
@@ -80,22 +79,22 @@ impl<'info> TakeTokens<'info> for Swap<'info> {
 impl<'info> SendTokens<'info> for Swap<'info> {
     fn send_x(&self) -> CpiContext<'_, '_, '_, 'info, Transfer<'info>> {
         CpiContext::new(
-            self.token_program.to_account_info(),
+            self.token_program.key(),
             Transfer {
                 from: self.reserve_x.to_account_info(),
                 to: self.account_x.to_account_info(),
-                authority: self.program_authority.clone(),
+                authority: self.program_authority.to_account_info(),
             },
         )
     }
 
     fn send_y(&self) -> CpiContext<'_, '_, '_, 'info, Transfer<'info>> {
         CpiContext::new(
-            self.token_program.to_account_info(),
+            self.token_program.key(),
             Transfer {
                 from: self.reserve_y.to_account_info(),
                 to: self.account_y.to_account_info(),
-                authority: self.program_authority.clone(),
+                authority: self.program_authority.to_account_info(),
             },
         )
     }
@@ -104,7 +103,7 @@ impl<'info> SendTokens<'info> for Swap<'info> {
 impl<'info> TakeRefTokens<'info> for Swap<'info> {
     fn take_ref_x(&self, to: AccountInfo<'info>) -> CpiContext<'_, '_, '_, 'info, Transfer<'info>> {
         CpiContext::new(
-            self.token_program.to_account_info(),
+            self.token_program.key(),
             Transfer {
                 from: self.account_x.to_account_info(),
                 to: to.to_account_info(),
@@ -115,7 +114,7 @@ impl<'info> TakeRefTokens<'info> for Swap<'info> {
 
     fn take_ref_y(&self, to: AccountInfo<'info>) -> CpiContext<'_, '_, '_, 'info, Transfer<'info>> {
         CpiContext::new(
-            self.token_program.to_account_info(),
+            self.token_program.key(),
             Transfer {
                 from: self.account_y.to_account_info(),
                 to: to.to_account_info(),
@@ -127,14 +126,14 @@ impl<'info> TakeRefTokens<'info> for Swap<'info> {
 
 impl<'info> Swap<'info> {
     pub fn handler(
-        ctx: Context<'_, '_, '_, 'info, Swap<'info>>,
+        ctx: Context<'info, Swap<'info>>,
         x_to_y: bool,
         amount: u64,
         by_amount_in: bool, // whether amount specifies input or output
         sqrt_price_limit: u128,
-    ) -> ProgramResult {
+    ) -> Result<()> {
         msg!("INVARIANT: SWAP");
-        require!(amount != 0, ZeroAmount);
+        require!(amount != 0, crate::ErrorCode::ZeroAmount);
 
         let sqrt_price_limit = Price::new(sqrt_price_limit);
         let mut pool = ctx.accounts.pool.load_mut()?;
@@ -169,13 +168,13 @@ impl<'info> Swap<'info> {
             require!(
                 { pool.sqrt_price } > sqrt_price_limit
                     && sqrt_price_limit <= Price::new(MAX_SQRT_PRICE),
-                WrongLimit
+                crate::ErrorCode::WrongLimit
             );
         } else {
             require!(
                 { pool.sqrt_price } < sqrt_price_limit
                     && sqrt_price_limit >= Price::new(MIN_SQRT_PRICE),
-                WrongLimit
+                crate::ErrorCode::WrongLimit
             );
         }
 
@@ -221,7 +220,7 @@ impl<'info> Swap<'info> {
 
             // Fail if price would go over swap limit
             if { pool.sqrt_price } == sqrt_price_limit && !remaining_amount.is_zero() {
-                return Err(ErrorCode::PriceLimitReached.into());
+                return Err(crate::ErrorCode::PriceLimitReached.into());
             }
 
             // crossing tick
@@ -256,7 +255,7 @@ impl<'info> Swap<'info> {
                         .find(|account| *account.key == tick_address)
                     {
                         Some(account) => AccountLoader::<'_, Tick>::try_from(account).unwrap(),
-                        None => return Err(ErrorCode::TickNotFound.into()),
+                        None => return Err(crate::ErrorCode::TickNotFound.into()),
                     };
                     let mut tick = loader.load_mut().unwrap();
 
@@ -292,7 +291,7 @@ impl<'info> Swap<'info> {
         }
 
         if total_amount_out.0 == 0 {
-            return Err(ErrorCode::NoGainSwap.into());
+            return Err(crate::ErrorCode::NoGainSwap.into());
         }
 
         // Execute swap

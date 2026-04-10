@@ -24,10 +24,10 @@ pub struct ChangeProtocolFee<'info> {
 }
 
 impl<'info> ChangeProtocolFee<'info> {
-    pub fn handler(&self, protocol_fee: FixedPoint) -> ProgramResult {
+    pub fn handler(&self, protocol_fee: FixedPoint) -> Result<()> {
         require!(
             protocol_fee <= FixedPoint::from_integer(1),
-            InvalidProtocolFee
+            crate::ErrorCode::InvalidProtocolFee
         );
         let pool = &mut self.pool.load_mut()?;
         pool.protocol_fee = protocol_fee;

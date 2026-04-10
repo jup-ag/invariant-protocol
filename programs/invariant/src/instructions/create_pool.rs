@@ -19,11 +19,11 @@ pub struct CreatePool<'info> {
     pub state: AccountLoader<'info, State>,
     #[account(init,
         seeds = [b"poolv1", token_x.to_account_info().key.as_ref(), token_y.to_account_info().key.as_ref(), &fee_tier.load()?.fee.v.to_le_bytes(), &fee_tier.load()?.tick_spacing.to_le_bytes()],
-        bump, payer = payer
+        bump, payer = payer, space = Pool::LEN
     )]
     pub pool: AccountLoader<'info, Pool>,
     #[account(
-        seeds = [b"feetierv1", program_id.as_ref(), &fee_tier.load()?.fee.v.to_le_bytes(), &fee_tier.load()?.tick_spacing.to_le_bytes()],
+        seeds = [b"feetierv1", __program_id.as_ref(), &fee_tier.load()?.fee.v.to_le_bytes(), &fee_tier.load()?.tick_spacing.to_le_bytes()],
         bump = fee_tier.load()?.bump
     )]
     pub fee_tier: AccountLoader<'info, FeeTier>,
@@ -46,15 +46,14 @@ pub struct CreatePool<'info> {
     #[account(mut)]
     pub payer: Signer<'info>,
     #[account(constraint = &state.load()?.authority == authority.key @ InvalidAuthority)]
-    pub authority: AccountInfo<'info>,
+    pub authority: UncheckedAccount<'info>,
     pub token_program: Program<'info, Token>,
     pub rent: Sysvar<'info, Rent>,
-    #[account(address = system_program::ID)]
-    pub system_program: AccountInfo<'info>,
+    pub system_program: Program<'info, System>,
 }
 
 impl<'info> CreatePool<'info> {
-    pub fn handler(&self, init_tick: i32, bump: u8) -> ProgramResult {
+    pub fn handler(&self, init_tick: i32, bump: u8) -> Result<()> {
         msg!("INVARIANT: CREATE POOL");
 
         let token_x_address = &self.token_x.key();
@@ -64,7 +63,7 @@ impl<'info> CreatePool<'info> {
                 .to_string()
                 .cmp(&token_y_address.to_string())
                 == Ordering::Less,
-            InvalidPoolTokenAddresses
+            crate::ErrorCode::InvalidPoolTokenAddresses
         );
 
         let pool = &mut self.pool.load_init()?;

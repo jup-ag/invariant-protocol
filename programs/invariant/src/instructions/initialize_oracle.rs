@@ -26,7 +26,7 @@ pub struct InitializeOracle<'info> {
 }
 
 impl<'info> InitializeOracle<'info> {
-    pub fn handler(&self) -> ProgramResult {
+    pub fn handler(&self) -> Result<()> {
         msg!("INVARIANT: INITIALIZE ORACLE");
 
         let oracle = &mut self.oracle.load_init()?;
@@ -34,7 +34,7 @@ impl<'info> InitializeOracle<'info> {
 
         require!(
             !pool.oracle_initialized,
-            ErrorCode::OracleAlreadyInitialized
+            crate::ErrorCode::OracleAlreadyInitialized
         );
 
         pool.set_oracle(self.oracle.key());

@@ -15,7 +15,7 @@ const WEEK: u64 = 604_800; //week in sec
 #[derive(Accounts)]
 #[instruction(nonce: u8)]
 pub struct CreateIncentive<'info> {
-    #[account(init, payer = founder)]
+    #[account(init, payer = founder, space = Incentive::LEN)]
     pub incentive: AccountLoader<'info, Incentive>,
     #[account(init,
         token::mint = incentive_token,
@@ -33,14 +33,12 @@ pub struct CreateIncentive<'info> {
     #[account(mut)]
     pub founder: Signer<'info>,
     #[account(seeds = [b"staker".as_ref()], bump = nonce)]
-    pub staker_authority: AccountInfo<'info>,
+    pub staker_authority: UncheckedAccount<'info>,
     pub incentive_token: Account<'info, Mint>,
-    #[account(address = token::ID)]
-    pub token_program: AccountInfo<'info>,
+    pub token_program: Program<'info, token::Token>,
     #[account(address = invariant::ID)]
     pub invariant: Program<'info, Invariant>,
-    #[account(address = system_program::ID)]
-    pub system_program: AccountInfo<'info>,
+    pub system_program: Program<'info, System>,
     pub rent: Sysvar<'info, Rent>,
 }
 
@@ -51,7 +49,7 @@ pub trait DepositToken<'info> {
 impl<'info> DepositToken<'info> for CreateIncentive<'info> {
     fn deposit(&self) -> CpiContext<'_, '_, '_, 'info, Transfer<'info>> {
         CpiContext::new(
-            self.token_program.to_account_info(),
+            self.token_program.key(),
             Transfer {
                 from: self.founder_token_account.to_account_info(),
                 to: self.incentive_token_account.to_account_info(),
@@ -67,17 +65,17 @@ pub fn handler(
     reward: TokenAmount,
     start_time: Seconds,
     end_time: Seconds,
-) -> ProgramResult {
+) -> Result<()> {
     msg!("CREATE INCENTIVE");
-    require!((reward) != TokenAmount::new(0), ZeroAmount);
+    require!((reward) != TokenAmount::new(0), crate::ErrorCode::ZeroAmount);
 
     require!(
         (start_time + Seconds::new(MAX_TIME_BEFORE_START)) >= Seconds::now(),
-        StartInPast
+        crate::ErrorCode::StartInPast
     );
     require!(
         (Seconds::now() + Seconds::new(MAX_DURATION)) >= end_time,
-        TooLongDuration
+        crate::ErrorCode::TooLongDuration
     );
     let incentive = &mut ctx.accounts.incentive.load_init()?;
 

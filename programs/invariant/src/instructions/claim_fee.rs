@@ -8,7 +8,7 @@ use crate::ErrorCode::*;
 use crate::*;
 
 use anchor_lang::prelude::*;
-use anchor_spl::token::{Mint, TokenAccount, Transfer};
+use anchor_spl::token::{self, Mint, TokenAccount, Transfer};
 
 #[derive(Accounts)]
 #[instruction( index: u32, lower_tick_index: i32, upper_tick_index: i32)]
@@ -67,37 +67,36 @@ pub struct ClaimFee<'info> {
     )]
     pub reserve_y: Box<Account<'info, TokenAccount>>,
     #[account(constraint = &state.load()?.authority == program_authority.key @ InvalidAuthority)]
-    pub program_authority: AccountInfo<'info>,
-    #[account(address = token::ID)]
-    pub token_program: AccountInfo<'info>,
+    pub program_authority: UncheckedAccount<'info>,
+    pub token_program: Program<'info, token::Token>,
 }
 
 impl<'info> interfaces::SendTokens<'info> for ClaimFee<'info> {
     fn send_x(&self) -> CpiContext<'_, '_, '_, 'info, Transfer<'info>> {
         CpiContext::new(
-            self.token_program.to_account_info(),
+            self.token_program.key(),
             Transfer {
                 from: self.reserve_x.to_account_info(),
                 to: self.account_x.to_account_info(),
-                authority: self.program_authority.clone(),
+                authority: self.program_authority.to_account_info(),
             },
         )
     }
 
     fn send_y(&self) -> CpiContext<'_, '_, '_, 'info, Transfer<'info>> {
         CpiContext::new(
-            self.token_program.to_account_info(),
+            self.token_program.key(),
             Transfer {
                 from: self.reserve_y.to_account_info(),
                 to: self.account_y.to_account_info(),
-                authority: self.program_authority.clone(),
+                authority: self.program_authority.to_account_info(),
             },
         )
     }
 }
 
 impl<'info> ClaimFee<'info> {
-    pub fn handler(&self) -> ProgramResult {
+    pub fn handler(&self) -> Result<()> {
         msg!("INVARIANT: CLAIM FEE");
 
         let state = self.state.load()?;

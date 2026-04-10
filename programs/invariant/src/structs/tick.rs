@@ -2,7 +2,7 @@ use crate::*;
 use anchor_lang::prelude::*;
 use decimals::*;
 
-#[account(zero_copy)]
+#[account(zero_copy(unsafe))]
 #[repr(packed)]
 #[derive(PartialEq, Default, Debug)]
 pub struct Tick {
@@ -17,6 +17,10 @@ pub struct Tick {
     pub seconds_per_liquidity_outside: FixedPoint,
     pub seconds_outside: u64,
     pub bump: u8,
+}
+
+impl Tick {
+    pub const LEN: usize = 8 + core::mem::size_of::<Self>();
 }
 
 impl Tick {
@@ -58,7 +62,7 @@ impl Tick {
     ) -> Result<Liquidity> {
         // validate in decrease liquidity case
         if !sign && { self.liquidity_gross } < liquidity_delta {
-            return Err(ErrorCode::InvalidTickLiquidity.into());
+            return Err(crate::ErrorCode::InvalidTickLiquidity.into());
         }
         let new_liquidity = match sign {
             true => self.liquidity_gross + liquidity_delta,
@@ -66,7 +70,7 @@ impl Tick {
         };
         // validate in increase liquidity case
         if sign && new_liquidity >= max_liquidity_per_tick {
-            return Err(ErrorCode::InvalidTickLiquidity.into());
+            return Err(crate::ErrorCode::InvalidTickLiquidity.into());
         }
 
         Ok(new_liquidity)

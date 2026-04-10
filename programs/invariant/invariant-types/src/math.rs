@@ -1,7 +1,7 @@
-use crate::{err, from_result, function, location, ok_or_mark_trace, trace};
+use crate::{err, from_result, function, location, ok_or_mark_trace, trace, Result};
 use std::{cell::RefMut, convert::TryInto};
 
-use anchor_lang::*;
+use anchor_lang::prelude::*;
 
 use crate::{
     decimals::*,
@@ -24,7 +24,7 @@ pub fn calculate_price_sqrt(tick_index: i32) -> Result<Price> {
     let tick = tick_index.abs();
 
     if tick > MAX_TICK {
-        return anchor_lang::err!(InvariantErrorCode::TickOverBounds);
+        return Err(InvariantErrorCode::TickOverBounds.into());
     }
 
     let mut price = FixedPoint::from_integer(1);

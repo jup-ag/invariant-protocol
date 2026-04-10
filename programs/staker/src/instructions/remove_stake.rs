@@ -15,10 +15,10 @@ pub struct RemoveStake<'info> {
     pub founder: Signer<'info>,
 }
 
-pub fn handler(ctx: Context<RemoveStake>) -> ProgramResult {
+pub fn handler(ctx: Context<RemoveStake>) -> Result<()> {
     let mut incentive = ctx.accounts.incentive.load_mut()?;
-    require!(Seconds::now() > { incentive.end_time }, TooEarly);
-    require!(incentive.num_of_stakes > 0, NoStakes);
+    require!(Seconds::now() > { incentive.end_time }, crate::ErrorCode::TooEarly);
+    require!(incentive.num_of_stakes > 0, crate::ErrorCode::NoStakes);
 
     // decrease number of stakes by 1
     incentive.num_of_stakes -= 1;

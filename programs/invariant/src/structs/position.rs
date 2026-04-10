@@ -4,7 +4,7 @@ use crate::structs::tick::Tick;
 use crate::*;
 use anchor_lang::prelude::*;
 
-#[account(zero_copy)]
+#[account(zero_copy(unsafe))]
 #[repr(packed)]
 #[derive(PartialEq, Default, Debug)]
 pub struct Position {
@@ -21,6 +21,10 @@ pub struct Position {
     pub tokens_owed_x: FixedPoint,
     pub tokens_owed_y: FixedPoint,
     pub bump: u8,
+}
+
+impl Position {
+    pub const LEN: usize = 8 + core::mem::size_of::<Self>();
 }
 
 impl Position {
@@ -82,7 +86,7 @@ impl Position {
     ) -> Result<()> {
         require!(
             liquidity_delta.v != 0 || self.liquidity.v != 0,
-            ErrorCode::EmptyPositionPokes
+            crate::ErrorCode::EmptyPositionPokes
         );
 
         // calculate accumulated fee
@@ -123,7 +127,7 @@ impl Position {
     ) -> Result<Liquidity> {
         // validate in decrease liquidity case
         if !sign && { self.liquidity } < liquidity_delta {
-            return Err(ErrorCode::InvalidPositionLiquidity.into());
+            return Err(crate::ErrorCode::InvalidPositionLiquidity.into());
         }
 
         Ok(match sign {

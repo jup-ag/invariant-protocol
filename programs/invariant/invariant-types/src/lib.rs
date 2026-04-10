@@ -9,6 +9,7 @@ pub mod utils;
 use anchor_lang::prelude::*;
 
 declare_id!("HyaB3W9q6XdA5xwpU4XnSZV94htfmbmqJXZcEbRaJutt");
+pub type Result<T> = anchor_lang::Result<T>;
 pub const SEED: &str = "Invariant";
 pub const STATE_SEED: &str = "statev1";
 pub const TICK_SEED: &str = "tickv1";

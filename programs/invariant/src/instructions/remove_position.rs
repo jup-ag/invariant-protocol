@@ -13,7 +13,7 @@ use anchor_spl::token;
 use anchor_spl::token::{Mint, TokenAccount, Transfer};
 
 #[derive(Accounts)]
-#[instruction(index: i32, lower_tick_index: i32, upper_tick_index: i32)]
+#[instruction(index: u32, lower_tick_index: i32, upper_tick_index: i32)]
 pub struct RemovePosition<'info> {
     #[account(seeds = [b"statev1".as_ref()], bump = state.load()?.bump)]
     pub state: AccountLoader<'info, State>,
@@ -44,7 +44,7 @@ pub struct RemovePosition<'info> {
     pub pool: AccountLoader<'info, Pool>,
     #[account(mut,
         constraint = tickmap.key() == pool.load()?.tickmap @ InvalidTickmap,
-        constraint = tickmap.to_account_info().owner == program_id @ InvalidTickmapOwner,
+        constraint = tickmap.to_account_info().owner == __program_id @ InvalidTickmapOwner,
     )]
     pub tickmap: AccountLoader<'info, Tickmap>,
     #[account(mut,
@@ -88,30 +88,29 @@ pub struct RemovePosition<'info> {
     )]
     pub reserve_y: Box<Account<'info, TokenAccount>>,
     #[account(constraint = &state.load()?.authority == program_authority.key @ InvalidAuthority)]
-    pub program_authority: AccountInfo<'info>,
-    #[account(address = token::ID)]
-    pub token_program: AccountInfo<'info>,
+    pub program_authority: UncheckedAccount<'info>,
+    pub token_program: Program<'info, token::Token>,
 }
 
 impl<'info> SendTokens<'info> for RemovePosition<'info> {
     fn send_x(&self) -> CpiContext<'_, '_, '_, 'info, Transfer<'info>> {
         CpiContext::new(
-            self.token_program.to_account_info(),
+            self.token_program.key(),
             Transfer {
                 from: self.reserve_x.to_account_info(),
                 to: self.account_x.to_account_info(),
-                authority: self.program_authority.clone(),
+                authority: self.program_authority.to_account_info(),
             },
         )
     }
 
     fn send_y(&self) -> CpiContext<'_, '_, '_, 'info, Transfer<'info>> {
         CpiContext::new(
-            self.token_program.to_account_info(),
+            self.token_program.key(),
             Transfer {
                 from: self.reserve_y.to_account_info(),
                 to: self.account_y.to_account_info(),
-                authority: self.program_authority.clone(),
+                authority: self.program_authority.to_account_info(),
             },
         )
     }
@@ -123,7 +122,7 @@ impl<'info> RemovePosition<'info> {
         index: u32,
         lower_tick_index: i32,
         upper_tick_index: i32,
-    ) -> ProgramResult {
+    ) -> Result<()> {
         msg!("INVARIANT: REMOVE POSITION");
 
         let state = self.state.load()?;

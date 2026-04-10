@@ -1,8 +1,6 @@
 use std::convert::TryInto;
 
-use anchor_lang::Result;
-
-use crate::{decimals::*, errors::InvariantErrorCode, math::calculate_price_sqrt};
+use crate::{decimals::*, errors::InvariantErrorCode, math::calculate_price_sqrt, Result};
 
 const LOG2_SCALE: u8 = 32;
 const LOG2_DOUBLE_SCALE: u8 = 64;

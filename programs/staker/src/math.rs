@@ -14,7 +14,7 @@ pub fn calculate_reward(
     current_time: Seconds,
 ) -> Result<(Seconds, TokenAmount)> {
     if current_time <= start_time {
-        return Err(ErrorCode::NotStarted.into());
+        return Err(crate::ErrorCode::NotStarted.into());
     }
 
     let seconds_inside = Seconds::from_decimal(

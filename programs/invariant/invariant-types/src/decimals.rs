@@ -9,37 +9,62 @@ use crate::{err, function, location};
 
 pub const PRICE_LIQUIDITY_DENOMINATOR: u128 = 1__0000_0000__0000_0000__00u128;
 
+macro_rules! impl_packed_anchor_serde {
+    ($name:ident, $inner:ty) => {
+        impl AnchorSerialize for $name {
+            fn serialize<W: std::io::Write>(&self, writer: &mut W) -> std::io::Result<()> {
+                let value = unsafe { core::ptr::addr_of!(self.v).read_unaligned() };
+                AnchorSerialize::serialize(&value, writer)
+            }
+        }
+
+        impl AnchorDeserialize for $name {
+            fn deserialize(buf: &mut &[u8]) -> std::io::Result<Self> {
+                Ok(Self {
+                    v: <$inner as AnchorDeserialize>::deserialize(buf)?,
+                })
+            }
+
+            fn deserialize_reader<R: std::io::Read>(reader: &mut R) -> std::io::Result<Self> {
+                Ok(Self {
+                    v: <$inner as AnchorDeserialize>::deserialize_reader(reader)?,
+                })
+            }
+        }
+    };
+}
+
 #[decimal(24)]
-#[zero_copy]
+#[zero_copy(unsafe)]
 #[derive(
-    Default, std::fmt::Debug, PartialEq, Eq, PartialOrd, Ord, AnchorSerialize, AnchorDeserialize,
+    Default, std::fmt::Debug, PartialEq, Eq, PartialOrd, Ord,
 )]
 pub struct Price {
     pub v: u128,
 }
 
 #[decimal(6)]
-#[zero_copy]
+#[zero_copy(unsafe)]
 #[derive(
-    Default, std::fmt::Debug, PartialEq, Eq, PartialOrd, Ord, AnchorSerialize, AnchorDeserialize,
+    Default, std::fmt::Debug, PartialEq, Eq, PartialOrd, Ord,
 )]
 pub struct Liquidity {
     pub v: u128,
 }
 
 #[decimal(24)]
-#[zero_copy]
+#[zero_copy(unsafe)]
 #[derive(
-    Default, std::fmt::Debug, PartialEq, Eq, PartialOrd, Ord, AnchorSerialize, AnchorDeserialize,
+    Default, std::fmt::Debug, PartialEq, Eq, PartialOrd, Ord,
 )]
 pub struct FeeGrowth {
     pub v: u128,
 }
 
 #[decimal(12)]
-#[zero_copy]
+#[zero_copy(unsafe)]
 #[derive(
-    Default, std::fmt::Debug, PartialEq, Eq, PartialOrd, Ord, AnchorSerialize, AnchorDeserialize,
+    Default, std::fmt::Debug, PartialEq, Eq, PartialOrd, Ord,
 )]
 pub struct FixedPoint {
     pub v: u128,
@@ -49,6 +74,11 @@ pub struct FixedPoint {
 #[decimal(0)]
 #[derive(Default, std::fmt::Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
 pub struct TokenAmount(pub u64);
+
+impl_packed_anchor_serde!(Price, u128);
+impl_packed_anchor_serde!(Liquidity, u128);
+impl_packed_anchor_serde!(FeeGrowth, u128);
+impl_packed_anchor_serde!(FixedPoint, u128);
 
 impl FeeGrowth {
     pub fn unchecked_add(self, other: FeeGrowth) -> FeeGrowth {

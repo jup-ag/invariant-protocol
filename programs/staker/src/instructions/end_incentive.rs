@@ -24,16 +24,15 @@ pub struct ReturnFounds<'info> {
     pub founder_token_account: Account<'info, TokenAccount>,
     pub incentive_token: Account<'info, Mint>,
     #[account(seeds = [b"staker".as_ref()], bump = nonce)]
-    pub staker_authority: AccountInfo<'info>,
+    pub staker_authority: UncheckedAccount<'info>,
     pub founder: Signer<'info>,
-    #[account(address = token::ID)]
-    pub token_program: AccountInfo<'info>,
+    pub token_program: Program<'info, token::Token>,
 }
 
 impl<'info> ReturnFounds<'info> {
     fn return_to_founder(&self) -> CpiContext<'_, '_, '_, 'info, Transfer<'info>> {
         CpiContext::new(
-            self.token_program.to_account_info(),
+            self.token_program.key(),
             Transfer {
                 from: self.incentive_token_account.to_account_info(),
                 to: self.founder_token_account.to_account_info(),
@@ -43,11 +42,11 @@ impl<'info> ReturnFounds<'info> {
     }
 }
 
-pub fn handler(ctx: Context<ReturnFounds>, nonce: u8) -> ProgramResult {
+pub fn handler(ctx: Context<ReturnFounds>, nonce: u8) -> Result<()> {
     {
         let incentive = ctx.accounts.incentive.load()?;
-        require!(Seconds::now() > { incentive.end_time }, TooEarly);
-        require!(incentive.num_of_stakes == 0, StakeExist);
+        require!(Seconds::now() > { incentive.end_time }, crate::ErrorCode::TooEarly);
+        require!(incentive.num_of_stakes == 0, crate::ErrorCode::StakeExist);
         let remaining_reward = incentive.total_reward_unclaimed;
 
         let seeds = &[STAKER_SEED.as_bytes(), &[nonce]];

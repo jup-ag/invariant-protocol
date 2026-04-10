@@ -43,37 +43,36 @@ pub struct WithdrawProtocolFee<'info> {
     #[account(constraint = &pool.load()?.fee_receiver == authority.key @ InvalidAuthority)]
     pub authority: Signer<'info>,
     #[account(constraint = &state.load()?.authority == program_authority.key @ InvalidAuthority)]
-    pub program_authority: AccountInfo<'info>,
-    #[account(address = token::ID)]
-    pub token_program: AccountInfo<'info>,
+    pub program_authority: UncheckedAccount<'info>,
+    pub token_program: Program<'info, token::Token>,
 }
 
 impl<'info> SendTokens<'info> for WithdrawProtocolFee<'info> {
     fn send_x(&self) -> CpiContext<'_, '_, '_, 'info, Transfer<'info>> {
         CpiContext::new(
-            self.token_program.to_account_info(),
+            self.token_program.key(),
             Transfer {
                 from: self.reserve_x.to_account_info(),
                 to: self.account_x.to_account_info(),
-                authority: self.program_authority.clone(),
+                authority: self.program_authority.to_account_info(),
             },
         )
     }
 
     fn send_y(&self) -> CpiContext<'_, '_, '_, 'info, Transfer<'info>> {
         CpiContext::new(
-            self.token_program.to_account_info(),
+            self.token_program.key(),
             Transfer {
                 from: self.reserve_y.to_account_info(),
                 to: self.account_y.to_account_info(),
-                authority: self.program_authority.clone(),
+                authority: self.program_authority.to_account_info(),
             },
         )
     }
 }
 
 impl<'info> WithdrawProtocolFee<'info> {
-    pub fn handler(&self) -> ProgramResult {
+    pub fn handler(&self) -> Result<()> {
         msg!("INVARIANT: WITHDRAW PROTOCOL FEE");
 
         let state = self.state.load()?;

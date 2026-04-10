@@ -25,9 +25,9 @@ pub struct CloseStakeByOwner<'info> {
     pub owner: Signer<'info>,
 }
 
-pub fn handler(ctx: Context<CloseStakeByOwner>, _index: i32) -> ProgramResult {
+pub fn handler(ctx: Context<CloseStakeByOwner>, _index: u32) -> Result<()> {
     let mut incentive = ctx.accounts.incentive.load_mut()?;
-    require!(incentive.num_of_stakes > 0, NoStakes);
+    require!(incentive.num_of_stakes > 0, crate::ErrorCode::NoStakes);
 
     // decrease number of stakes by 1
     incentive.num_of_stakes -= 1;

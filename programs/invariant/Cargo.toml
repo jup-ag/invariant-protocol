@@ -23,6 +23,7 @@ all = []
 decimal = { path = "decimal" }
 anchor-lang ={workspace = true}
 anchor-spl ={workspace = true}
+bytemuck = { version = "1", features = ["derive"] }
 integer-sqrt = "0.1.5"
 uint = "0.9.1"
 num-traits = "0.2.14"

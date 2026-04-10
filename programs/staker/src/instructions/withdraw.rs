@@ -37,17 +37,16 @@ pub struct Withdraw<'info> {
     )]
     pub owner_token_account: Account<'info, TokenAccount>,
     #[account(seeds = [b"staker".as_ref()], bump = nonce)]
-    pub staker_authority: AccountInfo<'info>,
+    pub staker_authority: UncheckedAccount<'info>,
     #[account(mut)]
-    pub owner: AccountInfo<'info>,
-    #[account(address = token::ID)]
-    pub token_program: AccountInfo<'info>,
+    pub owner: UncheckedAccount<'info>,
+    pub token_program: Program<'info, token::Token>,
 }
 
 impl<'info> Withdraw<'info> {
     fn withdraw(&self) -> CpiContext<'_, '_, '_, 'info, Transfer<'info>> {
         CpiContext::new(
-            self.token_program.to_account_info(),
+            self.token_program.key(),
             Transfer {
                 from: self.incentive_token_account.to_account_info(),
                 to: self.owner_token_account.to_account_info(),
@@ -57,7 +56,7 @@ impl<'info> Withdraw<'info> {
     }
 }
 
-pub fn handler(ctx: Context<Withdraw>, _index: i32, nonce: u8) -> ProgramResult {
+pub fn handler(ctx: Context<Withdraw>, _index: u32, nonce: u8) -> Result<()> {
     msg!("WITHDRAW");
 
     let mut incentive = ctx.accounts.incentive.load_mut()?;
@@ -68,15 +67,15 @@ pub fn handler(ctx: Context<Withdraw>, _index: i32, nonce: u8) -> ProgramResult 
         let update_slot = position.last_slot;
         let slot = get_current_slot();
 
-        require!(slot == update_slot, SlotsAreNotEqual);
-        require!(user_stake.liquidity.v != 0, ZeroSecondsStaked);
+        require!(slot == update_slot, crate::ErrorCode::SlotsAreNotEqual);
+        require!(user_stake.liquidity.v != 0, crate::ErrorCode::ZeroSecondsStaked);
 
         let seconds_per_liquidity_inside =
             SecondsPerLiquidity::new(position.seconds_per_liquidity_inside.v);
 
         let reward_unclaimed = incentive.total_reward_unclaimed;
 
-        require!(reward_unclaimed != TokenAmount::new(0), ZeroAmount);
+        require!(reward_unclaimed != TokenAmount::new(0), crate::ErrorCode::ZeroAmount);
 
         let (seconds_inside, reward) = calculate_reward(
             reward_unclaimed,
@@ -105,7 +104,7 @@ pub fn handler(ctx: Context<Withdraw>, _index: i32, nonce: u8) -> ProgramResult 
     }
 
     if Seconds::now() > { incentive.end_time } {
-        require!(incentive.num_of_stakes > 0, NoStakes);
+        require!(incentive.num_of_stakes > 0, crate::ErrorCode::NoStakes);
         close(
             ctx.accounts.user_stake.to_account_info(),
             ctx.accounts.owner.to_account_info(),

@@ -1,10 +1,9 @@
-use anchor_lang::__private::ErrorCode;
-use anchor_lang::__private::CLOSED_ACCOUNT_DISCRIMINATOR;
 use std::io::Write;
 
 use anchor_lang::prelude::*;
 
 pub const STAKER_SEED: &str = "staker";
+const CLOSED_ACCOUNT_DISCRIMINATOR: [u8; 8] = [255; 8];
 
 pub fn get_current_slot() -> u64 {
     Clock::get().unwrap().slot
@@ -13,7 +12,7 @@ pub fn get_current_slot() -> u64 {
 pub fn close<'info>(
     info: AccountInfo<'info>,
     sol_destination: AccountInfo<'info>,
-) -> ProgramResult {
+) -> Result<()> {
     // Transfer tokens from the account to the sol_destination.
     let dest_starting_lamports = sol_destination.lamports();
     **sol_destination.lamports.borrow_mut() =
@@ -26,6 +25,6 @@ pub fn close<'info>(
     let mut cursor = std::io::Cursor::new(dst);
     cursor
         .write_all(&CLOSED_ACCOUNT_DISCRIMINATOR)
-        .map_err(|_| ErrorCode::AccountDidNotSerialize)?;
+        .map_err(|_| ProgramError::InvalidAccountData)?;
     Ok(())
 }

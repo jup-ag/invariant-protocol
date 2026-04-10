@@ -23,7 +23,7 @@ pub struct CreatePosition<'info> {
         seeds = [b"positionv1",
         owner.key.as_ref(),
         &position_list.load()?.head.to_le_bytes()],
-        bump, payer = payer,
+        bump, payer = payer, space = Position::LEN,
     )]
     pub position: AccountLoader<'info, Position>,
     #[account(mut,
@@ -51,7 +51,7 @@ pub struct CreatePosition<'info> {
     pub upper_tick: AccountLoader<'info, Tick>,
     #[account(mut,
         constraint = tickmap.key() == pool.load()?.tickmap @ InvalidTickmap,
-        constraint = tickmap.to_account_info().owner == program_id @ InvalidTickmapOwner,
+        constraint = tickmap.to_account_info().owner == __program_id @ InvalidTickmapOwner,
     )]
     pub tickmap: AccountLoader<'info, Tickmap>,
     #[account(constraint = token_x.key() == pool.load()?.token_x @ InvalidTokenAccount)]
@@ -81,18 +81,16 @@ pub struct CreatePosition<'info> {
     )]
     pub reserve_y: Box<Account<'info, TokenAccount>>,
     #[account(constraint = &state.load()?.authority == program_authority.key @ InvalidAuthority)]
-    pub program_authority: AccountInfo<'info>,
-    #[account(address = token::ID)]
-    pub token_program: AccountInfo<'info>,
+    pub program_authority: UncheckedAccount<'info>,
+    pub token_program: Program<'info, token::Token>,
     pub rent: Sysvar<'info, Rent>,
-    #[account(address = system_program::ID)]
-    pub system_program: AccountInfo<'info>,
+    pub system_program: Program<'info, System>,
 }
 
 impl<'info> TakeTokens<'info> for CreatePosition<'info> {
     fn take_x(&self) -> CpiContext<'_, '_, '_, 'info, Transfer<'info>> {
         CpiContext::new(
-            self.token_program.to_account_info(),
+            self.token_program.key(),
             Transfer {
                 from: self.account_x.to_account_info(),
                 to: self.reserve_x.to_account_info(),
@@ -103,7 +101,7 @@ impl<'info> TakeTokens<'info> for CreatePosition<'info> {
 
     fn take_y(&self) -> CpiContext<'_, '_, '_, 'info, Transfer<'info>> {
         CpiContext::new(
-            self.token_program.to_account_info(),
+            self.token_program.key(),
             Transfer {
                 from: self.account_y.to_account_info(),
                 to: self.reserve_y.to_account_info(),
@@ -120,7 +118,7 @@ impl<'info> CreatePosition<'info> {
         slippage_limit_lower: Price,
         slippage_limit_upper: Price,
         bump: u8,
-    ) -> ProgramResult {
+    ) -> Result<()> {
         msg!("INVARIANT: CREATE POSITION");
 
         let mut position = self.position.load_init()?;
@@ -134,8 +132,8 @@ impl<'info> CreatePosition<'info> {
 
         // validate price
         let price = pool.sqrt_price;
-        require!(price >= slippage_limit_lower, PriceLimitReached);
-        require!(price <= slippage_limit_upper, PriceLimitReached);
+        require!(price >= slippage_limit_lower, crate::ErrorCode::PriceLimitReached);
+        require!(price <= slippage_limit_upper, crate::ErrorCode::PriceLimitReached);
 
         // validate ticks
         check_ticks(lower_tick.index, upper_tick.index, pool.tick_spacing)?;
